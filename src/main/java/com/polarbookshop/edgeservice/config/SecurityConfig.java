@@ -3,6 +3,7 @@ package com.polarbookshop.edgeservice.config;
 import reactor.core.publisher.Mono;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
@@ -15,24 +16,29 @@ import org.springframework.security.web.server.authentication.HttpStatusServerEn
 import org.springframework.security.web.server.authentication.logout.ServerLogoutSuccessHandler;
 import org.springframework.security.web.server.csrf.CookieServerCsrfTokenRepository;
 import org.springframework.security.web.server.csrf.CsrfToken;
+import org.springframework.security.oauth2.client.web.server.ServerOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.server.WebSessionServerOAuth2AuthorizedClientRepository;
 import org.springframework.web.server.WebFilter;
 
+@Configuration
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
     @Bean
     SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http, ReactiveClientRegistrationRepository clientRegistrationRepository) {
+
         return http
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers("/", "/*.css", "/*.js", "/favicon.ico").permitAll()
-                        .pathMatchers(HttpMethod.GET, "/books/**").permitAll()
-                        .anyExchange().authenticated()
+                    .pathMatchers("/", "/*.css", "/*.js", "/favicon.ico").permitAll()
+                    .pathMatchers(HttpMethod.GET, "/books/**").permitAll()
+                    .anyExchange().authenticated()
                 )
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint(new HttpStatusServerEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .oauth2Login(Customizer.withDefaults())
                 .logout(logout -> logout.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
-                .csrf(csrf -> csrf.csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse()))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                //.csrf(csrf -> csrf.csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse()))
                 .build();
     }
 
@@ -42,16 +48,20 @@ public class SecurityConfig {
         return oidcLogoutSuccessHandler;
     }
 
-    @Bean
-    WebFilter csrfWebFilter() {
-        // Required because of https://github.com/spring-projects/spring-security/issues/5766
-        return (exchange, chain) -> {
-            exchange.getResponse().beforeCommit(() -> Mono.defer(() -> {
-                Mono<CsrfToken> csrfToken = exchange.getAttribute(CsrfToken.class.getName());
-                return csrfToken != null ? csrfToken.then() : Mono.empty();
-            }));
-            return chain.filter(exchange);
-        };
-    }
+//    @Bean
+//    WebFilter csrfWebFilter() {
+//        // Required because of https://github.com/spring-projects/spring-security/issues/5766
+//        return (exchange, chain) -> {
+//            exchange.getResponse().beforeCommit(() -> Mono.defer(() -> {
+//                Mono<CsrfToken> csrfToken = exchange.getAttribute(CsrfToken.class.getName());
+//                return csrfToken != null ? csrfToken.then() : Mono.empty();
+//            }));
+//            return chain.filter(exchange);
+//        };
+//    }
 
+    @Bean
+    ServerOAuth2AuthorizedClientRepository authorizedClientRepository() {
+        return new WebSessionServerOAuth2AuthorizedClientRepository();
+    }
 }
